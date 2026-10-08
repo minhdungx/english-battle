@@ -1,0 +1,19 @@
+{
+  "name": "bufobiaaa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "npm --workspace=@bufobia/shared run build && npm --workspace=@bufobia/server run dev",
+    "dev:web": "npm --workspace=@bufobia/shared run build && npm --workspace=@bufobia/web run dev",
+    "build": "npm --workspace=@bufobia/shared run build && npm --workspace=@bufobia/server run build && npm --workspace=@bufobia/web run build",
+    "test": "npm --workspace=@bufobia/shared run build && npm --workspace=@bufobia/server run test"
+  },
+  "devDependencies": {
+    "railway": "^3.13.0"
+  }
+}

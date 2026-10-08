@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bufobia — Race Mode UI Proposal</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0e13;
+      --panel: #141922;
+      --panel-2: #1b2230;
+      --line: #2b3444;
+      --text: #f7f4ec;
+      --muted: #98a3b5;
+      --orange: #ff6b35;
+      --amber: #ffbf47;
+      --lime: #a3e635;
+      --cyan: #4fd1c5;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 80% 0, rgba(255, 107, 53, .14), transparent 32rem),
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
+        var(--bg);
+      background-size: auto, 32px 32px, 32px 32px, auto;
+      font: 15px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+    .shell { width: min(1180px, calc(100% - 28px)); margin: 0 auto; padding: 22px 0 48px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 900; }
+    .brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; color: #251008; background: var(--orange); }
+    .tabs { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: rgba(20,25,34,.85); }
+    .tab { border: 0; border-radius: 9px; background: transparent; padding: 9px 14px; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 800; }
+    .tab[aria-selected="true"] { color: #241109; background: var(--orange); }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .eyebrow { color: var(--orange); font: 800 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; text-transform: uppercase; }
+    .panel { border: 1px solid var(--line); border-radius: 22px; background: rgba(20,25,34,.94); box-shadow: 0 22px 70px rgba(0,0,0,.25); }
+    .muted { color: var(--muted); }
+    .pill { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; color: #c8d0dc; background: #10151d; font-size: 12px; font-weight: 750; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px rgba(163,230,53,.7); }
+
+    /* Lobby */
+    .lobby-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+    .lobby-main, .lobby-side { padding: clamp(20px, 4vw, 36px); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin: 8px 0 12px; font-size: clamp(36px, 6vw, 68px); line-height: .96; letter-spacing: -.055em; }
+    h2 { margin-bottom: 6px; font-size: 24px; }
+    .rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 28px; }
+    .rule { min-height: 112px; padding: 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel-2); }
+    .rule b { display: block; margin: 8px 0 3px; }
+    .rule span { color: var(--muted); font-size: 12px; }
+    .room-code { margin: 12px 0 24px; font: 900 clamp(34px, 6vw, 58px)/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; }
+    .player { display: flex; align-items: center; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 15px; background: #10151d; }
+    .avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: #313b4d; font-weight: 900; }
+    .player-state { margin-left: auto; color: var(--lime); font-size: 12px; font-weight: 800; }
+    .primary { width: 100%; margin-top: 18px; border: 0; border-radius: 14px; padding: 14px 18px; color: #2b1309; background: var(--orange); cursor: pointer; font-weight: 950; }
+
+    /* Race */
+    .race-layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 16px; }
+    .race-main { min-width: 0; }
+    .race-hud { display: grid; grid-template-columns: auto minmax(200px, 1fr) auto; align-items: center; gap: 16px; padding: 14px 16px; }
+    .timer { color: var(--amber); font: 900 24px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .timebar { height: 8px; overflow: hidden; border-radius: 99px; background: #293142; }
+    .timebar::before { content: ""; display: block; width: 74%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--orange), var(--amber)); }
+    .track-strip { position: relative; overflow: hidden; margin: 12px 0 16px; padding: 17px 16px 13px; }
+    .track-strip::before { content: ""; position: absolute; inset: 0; opacity: .22; background: repeating-linear-gradient(115deg, transparent 0 28px, rgba(255,255,255,.11) 28px 30px); }
+    .track-label { position: relative; display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .road { position: relative; height: 84px; border-block: 1px solid #465166; background: #11161f; }
+    .road::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; border-top: 2px dashed rgba(255,255,255,.22); }
+    .car { position: absolute; z-index: 1; top: 50%; translate: -50% -50%; width: 44px; height: 32px; }
+    .car-body { position: absolute; z-index: 1; top: 50%; left: 50%; width: 42px; height: 22px; border: 2px solid rgba(255,255,255,.7); border-radius: 13px 15px 7px 8px; box-shadow: 0 8px 10px rgba(0,0,0,.5); transform: translate(-50%, -50%); }
+    .car-body::before { content: ""; position: absolute; top: 2px; right: -6px; width: 9px; height: 14px; border-radius: 50%; background: inherit; }
+    .car-window { position: absolute; top: 3px; left: 11px; width: 17px; height: 8px; border: 1px solid rgba(255,255,255,.75); border-radius: 7px 7px 3px 3px; background: linear-gradient(135deg, #d7f5ff, #394c6c); }
+    .car-wheel { position: absolute; bottom: -5px; width: 9px; height: 9px; border: 2px solid #101010; border-radius: 50%; background: #4a4a4a; }
+    .car-wheel.front { right: 4px; }
+    .car-wheel.back { left: 5px; }
+    .car-light { position: absolute; right: -7px; top: 7px; width: 4px; height: 6px; border-radius: 2px; background: #fff4c7; box-shadow: 0 0 8px #ffba51; }
+    .car-1 .car-body { background: linear-gradient(#f44336, #9d1717); }
+    .car-2 .car-body { background: linear-gradient(#37c8ff, #075fae); }
+    .car-3 .car-body { background: linear-gradient(#f6b620, #b95d00); }
+    .car-flame { position: absolute; z-index: 0; top: 50%; left: -4px; width: 15px; height: 10px; border-radius: 50%; background: radial-gradient(ellipse at 80% 50%, #fff8aa 0 15%, #ffb000 28%, #ff4b00 55%, transparent 72%); filter: blur(.3px) drop-shadow(0 0 8px rgba(255,78,0,.85)); }
+    .car::after { position: absolute; top: 36px; color: var(--text); white-space: nowrap; font-size: 10px; font-weight: 800; }
+    .car-1 { left: 76%; } .car-1::after { content: "Minh · #1"; }
+    .car-2 { left: 63%; } .car-2::after { content: "BẠN · #2"; color: var(--orange); }
+    .car-3 { left: 45%; } .car-3::after { content: "An · #3"; }
+    .finish { position: absolute; right: 18px; top: 0; bottom: 0; width: 8px; background: repeating-conic-gradient(#fff 0 25%, #111 0 50%) 0 0/8px 8px; opacity: .8; }
+    .play-card { padding: clamp(22px, 5vw, 44px); text-align: center; }
+    .meaning { margin: 7px 0 19px; font-size: clamp(30px, 5vw, 54px); line-height: 1.06; letter-spacing: -.035em; }
+    .tiles { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 22px 0; }
+    .tile { display: grid; place-items: center; width: 47px; height: 52px; border: 1px solid #46526a; border-radius: 12px; color: #d9e0ea; background: #202837; font: 900 22px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .tile.open { border-color: #8b78ff; box-shadow: 0 0 0 3px rgba(139,120,255,.12); }
+    .answer-row { display: flex; gap: 9px; width: min(650px, 100%); margin: 0 auto; }
+    .answer { flex: 1; min-width: 0; border: 2px solid #56627a; border-radius: 14px; padding: 14px 16px; color: var(--text); background: #10151d; outline: none; }
+    .answer:focus { border-color: var(--orange); box-shadow: 0 0 0 4px rgba(255,107,53,.12); }
+    .submit { border: 0; border-radius: 14px; padding: 0 22px; color: #251008; background: var(--orange); font-weight: 950; }
+    .feedback { min-height: 24px; margin-top: 10px; color: var(--lime); font-size: 13px; font-weight: 800; }
+    .ranking { padding: 18px; }
+    .ranking h3 { font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+    .rank-row { display: grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .rank-row.me { color: #ffb28e; }
+    .rank-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .distance { font: 800 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .boost { margin-top: 15px; padding: 12px; border: 1px solid rgba(163,230,53,.3); border-radius: 14px; color: #d6f99d; background: rgba(163,230,53,.08); font-size: 12px; }
+
+    /* Results */
+    .result-head { padding: 30px; text-align: center; }
+    .winner { margin: 10px 0 4px; font-size: clamp(36px, 7vw, 72px); line-height: 1; letter-spacing: -.05em; }
+    .result-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; margin-top: 16px; }
+    .result-panel { padding: 20px; }
+    .result-row { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 12px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+    .result-row:first-of-type { border-top: 0; }
+    .result-row strong:last-child { color: var(--orange); font: 900 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .stat { margin-top: 10px; padding: 14px; border-radius: 15px; background: var(--panel-2); }
+    .stat b { display: block; margin-top: 4px; font-size: 18px; }
+
+    @media (max-width: 820px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .tabs { width: 100%; overflow-x: auto; }
+      .tab { flex: 1; white-space: nowrap; }
+      .lobby-grid, .race-layout, .result-grid { grid-template-columns: 1fr; }
+      .rules { grid-template-columns: 1fr; }
+      .rule { min-height: 0; }
+      .ranking { order: -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 9px; }
+      .ranking h3, .boost { display: none; }
+      .rank-row { grid-template-columns: auto 1fr; padding: 8px; border: 0; border-radius: 10px; background: #10151d; }
+      .rank-row .distance { grid-column: 2; }
+      .race-hud { grid-template-columns: 1fr auto; }
+      .timebar { grid-row: 2; grid-column: 1 / -1; }
+      .answer-row { position: sticky; bottom: 8px; z-index: 3; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: rgba(11,14,19,.94); backdrop-filter: blur(12px); }
+      .submit { padding-inline: 16px; }
+      .result-row { grid-template-columns: 30px 1fr auto; }
+      .result-row .score { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">↗</span> English <span style="color:var(--orange)">Battle</span></div>
+      <nav class="tabs" aria-label="Màn hình prototype">
+        <button class="tab" aria-selected="true" data-screen="lobby">1. Phòng chờ</button>
+        <button class="tab" aria-selected="false" data-screen="race">2. Đang đua</button>
+        <button class="tab" aria-selected="false" data-screen="result">3. Kết quả</button>
+      </nav>
+    </header>
+
+    <section id="lobby" class="screen active">
+      <div class="lobby-grid">
+        <article class="panel lobby-main">
+          <div class="eyebrow">Race mode / 02:00</div>
+          <h1>Đúng nhanh.<br><span style="color:var(--orange)">Xe đi xa.</span></h1>
+          <p class="muted">Mỗi người giải chuỗi từ riêng. Trả lời càng sớm, xe tiến càng xa. Khi hết giờ, người đi xa nhất thắng.</p>
+          <div class="rules">
+            <div class="rule">⏱️ <b>Đua đến hết giờ</b><span>Không có mốc 5 chặng.</span></div>
+            <div class="rule">⚡ <b>Tốc độ = quãng đường</b><span>Tối đa 1.0 chặng mỗi từ.</span></div>
+            <div class="rule">🔥 <b>Comeback boost</b><span>Người phía sau có cơ hội bám đuổi.</span></div>
+          </div>
+        </article>
+        <aside class="panel lobby-side">
+          <div class="eyebrow">Mã phòng</div>
+          <div class="room-code">SVECN</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <b>1 tay đua</b><span class="pill"><span class="dot"></span>Sẵn sàng</span>
+          </div>
+          <div class="player"><span class="avatar">U</span><span><b>UI Review</b><br><small class="muted">Chủ phòng · Bạn</small></span><span class="player-state">READY</span></div>
+          <button class="primary">BẮT ĐẦU ĐUA →</button>
+        </aside>
+      </div>
+    </section>
+
+    <section id="race" class="screen">
+      <div class="race-layout">
+        <div class="race-main">
+          <section class="panel race-hud">
+            <div><div class="eyebrow">Còn lại</div><div class="timer">01:28</div></div>
+            <div class="timebar" aria-label="74% thời gian còn lại"></div>
+            <div class="pill">BẠN ĐANG #2</div>
+          </section>
+
+          <section class="panel track-strip">
+            <div class="track-label"><span>Khoảng cách tương đối</span><span>Đường đua vô hạn</span></div>
+            <div class="road" aria-label="Minh dẫn đầu, bạn hạng hai, An hạng ba">
+              <span class="car car-1"><span class="car-flame" aria-hidden="true"></span><span class="car-body"><span class="car-window"></span><span class="car-wheel front"></span><span class="car-wheel back"></span><span class="car-light"></span></span></span>
+              <span class="car car-2"><span class="car-flame" aria-hidden="true"></span><span class="car-body"><span class="car-window"></span><span class="car-wheel front"></span><span class="car-wheel back"></span><span class="car-light"></span></span></span>
+              <span class="car car-3"><span class="car-flame" aria-hidden="true"></span><span class="car-body"><span class="car-window"></span><span class="car-wheel front"></span><span class="car-wheel back"></span><span class="car-light"></span></span></span>
+            </div>
+          </section>
+
+          <section class="panel play-card">
+            <div class="eyebrow">Từ hiện tại · Food & Health · B2</div>
+            <h1 class="meaning">“chất gluten”</h1>
+            <div class="pill">Danh từ</div>
+            <div class="tiles" aria-label="G, ô trống, U, T, ô trống, N">
+              <span class="tile open">G</span><span class="tile">_</span><span class="tile open">U</span><span class="tile open">T</span><span class="tile">_</span><span class="tile open">N</span>
+            </div>
+            <div class="answer-row">
+              <input class="answer" aria-label="Đáp án tiếng Anh" placeholder="Nhập từ tiếng Anh…">
+              <button class="submit">GỬI ↵</button>
+            </div>
+            <div class="feedback">Trả lời đúng sớm để tăng tối đa 1.0 chặng</div>
+          </section>
+        </div>
+
+        <aside class="panel ranking">
+          <h3>Xếp hạng trực tiếp</h3>
+          <div class="rank-row"><span>🥇</span><b>Minh</b><span class="distance">8.4</span></div>
+          <div class="rank-row me"><span>2</span><b>Bạn</b><span class="distance">7.9</span></div>
+          <div class="rank-row"><span>3</span><b>An</b><span class="distance">6.8</span></div>
+          <div class="boost">🔥 Bạn đang sau 0.5 chặng. Trả lời đúng để kích hoạt cơ hội comeback.</div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="result" class="screen">
+      <header class="panel result-head">
+        <div class="eyebrow">Hết giờ · Kết quả đường đua</div>
+        <div class="winner">🏆 Minh chiến thắng</div>
+        <p class="muted">Dẫn đầu với 12.8 chặng · 15 từ đúng</p>
+      </header>
+      <div class="result-grid">
+        <section class="panel result-panel">
+          <h2>Bảng xếp hạng</h2>
+          <div class="result-row"><strong>1</strong><b>Minh</b><span class="score muted">8,920 điểm</span><strong>12.8 chặng</strong></div>
+          <div class="result-row"><strong>2</strong><b>Bạn</b><span class="score muted">8,410 điểm</span><strong>12.1 chặng</strong></div>
+          <div class="result-row"><strong>3</strong><b>An</b><span class="score muted">7,620 điểm</span><strong>10.9 chặng</strong></div>
+        </section>
+        <aside class="panel result-panel">
+          <h2>Điểm nhấn</h2>
+          <div class="stat"><span class="muted">⚡ Nhanh nhất</span><b>Bạn · 1.24s</b></div>
+          <div class="stat"><span class="muted">🎯 Đúng nhiều nhất</span><b>Minh · 15 từ</b></div>
+          <div class="stat"><span class="muted">🔥 Chuỗi dài nhất</span><b>An · 6 từ</b></div>
+          <button class="primary">ĐUA LẠI</button>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const tabs = [...document.querySelectorAll(".tab")];
+    const screens = [...document.querySelectorAll(".screen")];
+    tabs.forEach((tab) => tab.addEventListener("click", () => {
+      tabs.forEach((item) => item.setAttribute("aria-selected", String(item === tab)));
+      screens.forEach((screen) => screen.classList.toggle("active", screen.id === tab.dataset.screen));
+    }));
+  </script>
+</body>
+</html>

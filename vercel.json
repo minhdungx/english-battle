@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm --workspace=@bufobia/shared run build && npm --workspace=@bufobia/web run build",
+  "outputDirectory": "apps/web/.next",
+  "functions": {
+    "api/socket-io/socket.io.ts": {
+      "maxDuration": 60
+    }
+  }
+}

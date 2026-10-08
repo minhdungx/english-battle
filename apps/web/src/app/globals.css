@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #11100e;
+  --foreground: #fff8ec;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-be-vietnam-pro), Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.font-mono {
+  font-family: var(--font-be-vietnam-pro), Arial, Helvetica, sans-serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 78% 12%, rgba(255, 97, 31, 0.18), transparent 24rem),
+    radial-gradient(circle at 14% 78%, rgba(255, 190, 92, 0.08), transparent 22rem),
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: auto, auto, 30px 30px, 30px 30px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body > * { position: relative; z-index: 1; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes roadFlow {
+  from { background-position: 0 0; }
+  to { background-position: 48px 0; }
+}
+
+@keyframes sideEngineVibration {
+  0%, 100% { transform: translateY(-50%) rotate(0deg); }
+  50% { transform: translateY(calc(-50% + 1px)) rotate(-1deg); }
+}
+
+@keyframes sideFlameFlicker {
+  0%, 100% { transform: translateY(-50%) scaleX(.85); opacity: .7; }
+  50% { transform: translateY(-50%) scaleX(1.2); opacity: 1; }
+}
+
+.race-horizontal-track {
+  position: relative;
+  min-height: 106px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #29201b 0 12%, #15110e 12% 88%, #29201b 88% 100%);
+}
+
+.race-horizontal-road {
+  position: absolute;
+  inset: 29px 0 24px;
+  background: repeating-linear-gradient(90deg, transparent 0 20px, rgba(255,255,255,.42) 20px 38px, transparent 38px 58px);
+  background-size: 58px 2px;
+  background-repeat: repeat-x;
+  animation: roadFlow .75s linear infinite;
+  opacity: .72;
+}
+
+.race-horizontal-racer {
+  position: absolute;
+  z-index: 2;
+  top: 61px;
+  width: 84px;
+  transform: translate(-50%, -50%);
+  transition: left 700ms cubic-bezier(.22, .9, .28, 1);
+}
+
+.race-horizontal-racer-me { z-index: 3; }
+
+.race-horizontal-racer-label {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 150px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: #fff7ea;
+  background: rgba(13, 10, 8, .9);
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.race-position { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; color: #c6ceda; }
+.race-position-first { color: #ffc468; }
+
+.race-side-car-wrap { position: absolute; left: 50%; bottom: -2px; width: 50px; height: 30px; transform: translateX(-50%); }
+
+.race-side-car {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 42px;
+  height: 22px;
+  border: 2px solid rgba(255,255,255,.7);
+  border-radius: 13px 15px 7px 8px;
+  box-shadow: 0 8px 14px rgba(0,0,0,.42);
+  transform: translate(-50%, -50%);
+  animation: sideEngineVibration .22s ease-in-out infinite;
+}
+
+.race-side-car::before { content: ""; position: absolute; top: 2px; right: -6px; width: 9px; height: 14px; border-radius: 50%; background: inherit; }
+.race-side-car-window { position: absolute; top: 3px; left: 11px; width: 17px; height: 8px; border: 1px solid rgba(255,255,255,.75); border-radius: 7px 7px 3px 3px; background: linear-gradient(135deg, #d7f5ff, #394c6c); }
+.race-side-car-wheel { position: absolute; bottom: -5px; width: 9px; height: 9px; border: 2px solid #101010; border-radius: 50%; background: #4a4a4a; }
+.race-side-car-wheel-front { right: 4px; }
+.race-side-car-wheel-back { left: 5px; }
+.race-side-car-light { position: absolute; right: -7px; top: 7px; width: 4px; height: 6px; border-radius: 2px; background: #fff4c7; box-shadow: 0 0 8px #ffba51; }
+.race-side-car-0 { background: linear-gradient(#f44336, #9d1717); }
+.race-side-car-1 { background: linear-gradient(#37c8ff, #075fae); }
+.race-side-car-2 { background: linear-gradient(#f6b620, #b95d00); }
+.race-side-car-3 { background: linear-gradient(#b38cff, #5823a1); }
+
+.race-side-car-flame { position: absolute; z-index: 0; top: 50%; left: -4px; width: 15px; height: 10px; border-radius: 50%; background: radial-gradient(ellipse at 80% 50%, #fff8aa 0 15%, #ffb000 28%, #ff4b00 55%, transparent 72%); filter: blur(.3px) drop-shadow(0 0 8px rgba(255,78,0,.85)); animation: sideFlameFlicker .18s ease-in-out infinite; }
+.race-side-car-boosted .race-side-car { filter: drop-shadow(0 0 10px rgba(255,114,35,.9)); }
+.race-side-car-boosted .race-side-car-flame { left: -16px; width: 28px; height: 16px; filter: blur(.4px) drop-shadow(0 0 12px rgba(255,78,0,1)); }
+.race-side-car-hot .race-side-car { filter: drop-shadow(0 0 10px rgba(255, 92, 0, .95)); }
+.race-side-car-hot .race-side-car-flame { left: -20px; width: 34px; height: 20px; filter: blur(.3px) drop-shadow(0 0 14px rgba(255, 62, 0, 1)); }
+.race-hot-streak { position: absolute; top: 29px; left: 50%; padding: 2px 5px; border-radius: 999px; color: #fff4bf; background: rgba(104, 25, 4, .88); box-shadow: 0 0 12px rgba(255, 78, 0, .8); font-size: 8px; font-weight: 900; white-space: nowrap; transform: translateX(-50%); }
+
+.race-answer-card { border-color: rgba(139,120,255,.35); }
+.race-answer-card-hot { border-color: rgba(255, 101, 29, .85); box-shadow: inset 0 -18px 36px rgba(255, 65, 0, .16), 0 0 28px rgba(255, 94, 0, .22); }
+.race-answer-card-hot::before { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 46px; pointer-events: none; background: radial-gradient(ellipse 13px 42px at 10% 100%, #fff3a1 0 8%, #ffb000 28%, #ff4b00 58%, transparent 76%) 0 100% / 42px 44px repeat-x; filter: drop-shadow(0 0 8px rgba(255, 78, 0, .8)); animation: hotFlames .5s ease-in-out infinite alternate; }
+.race-hot-streak-badge { position: absolute; top: 12px; right: 14px; z-index: 1; border: 1px solid rgba(255, 188, 91, .55); border-radius: 999px; padding: 4px 8px; color: #fff0c7; background: rgba(104, 25, 4, .75); box-shadow: 0 0 16px rgba(255, 78, 0, .5); font-size: 10px; font-weight: 900; letter-spacing: .06em; }
+
+.race-storm { position: absolute; z-index: 0; inset: 0; overflow: hidden; }
+.race-storm ~ * { position: relative; z-index: 1; }
+.race-storm-clouds { position: absolute; top: -28px; right: -10%; left: -10%; height: 58px; opacity: .7; background: radial-gradient(ellipse at 20% 100%, #151b29 0 24%, transparent 26%), radial-gradient(ellipse at 48% 100%, #202a3c 0 30%, transparent 32%), radial-gradient(ellipse at 78% 100%, #111827 0 25%, transparent 27%); filter: blur(5px); }
+.race-storm-rain { position: absolute; inset: 0; opacity: .42; background: repeating-linear-gradient(105deg, transparent 0 19px, rgba(190, 226, 255, .9) 20px 21px, transparent 22px 39px); background-size: 58px 58px; animation: stormRain .45s linear infinite; }
+.race-storm-lightning { position: absolute; inset: 0; background: rgba(209, 235, 255, .45); opacity: 0; animation: stormLightning 4.6s step-end infinite; }
+
+.race-leader-fire {
+  border: 2px solid rgba(255, 126, 44, .72);
+  box-shadow: inset 0 0 28px rgba(255, 77, 0, .9), 0 0 22px rgba(255, 96, 0, .72);
+  animation: leaderFire .7s ease-in-out infinite alternate;
+}
+
+.race-leader-fire::before,
+.race-leader-fire::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.race-leader-fire::before {
+  inset: 0 18px;
+  background:
+    radial-gradient(ellipse 15px 52px at 50% 0, #fff9b0 0 8%, #ffc21c 25%, #ff5a00 54%, transparent 76%) 0 0 / 48px 54px repeat-x,
+    radial-gradient(ellipse 15px 52px at 50% 100%, #fff9b0 0 8%, #ffc21c 25%, #ff5a00 54%, transparent 76%) 24px 100% / 48px 54px repeat-x;
+  filter: drop-shadow(0 0 9px rgba(255, 75, 0, .9));
+}
+
+.race-leader-fire::after {
+  inset: 18px 0;
+  background:
+    radial-gradient(ellipse 52px 15px at 0 50%, #fff9b0 0 8%, #ffc21c 25%, #ff5a00 54%, transparent 76%) 0 0 / 54px 48px repeat-y,
+    radial-gradient(ellipse 52px 15px at 100% 50%, #fff9b0 0 8%, #ffc21c 25%, #ff5a00 54%, transparent 76%) 100% 24px / 54px 48px repeat-y;
+  filter: drop-shadow(0 0 9px rgba(255, 75, 0, .9));
+}
+
+.race-last-shadow { background: radial-gradient(circle at 50% 50%, transparent 20%, rgba(0, 0, 0, .68) 100%); animation: lastShadow 2.4s ease-in-out infinite alternate; }
+.race-overtake-alert { animation: overtakePulse .45s ease-in-out 4; }
+
+@keyframes leaderFire { from { opacity: .72; box-shadow: inset 0 0 20px rgba(255, 77, 0, .7), 0 0 14px rgba(255, 96, 0, .55); } to { opacity: 1; box-shadow: inset 0 0 34px rgba(255, 167, 0, 1), 0 0 30px rgba(255, 96, 0, .9); } }
+@keyframes hotFlames { from { transform: scaleY(.86); opacity: .72; } to { transform: scaleY(1.08); opacity: 1; } }
+@keyframes stormRain { to { background-position: -28px 58px; } }
+@keyframes stormLightning { 0%, 93%, 100% { opacity: 0; } 94%, 96% { opacity: .72; } 95% { opacity: .15; } }
+@keyframes lastShadow { from { opacity: .55; } to { opacity: .9; } }
+@keyframes overtakePulse { 50% { transform: translateX(5px) scale(1.03); border-color: #fff; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .race-horizontal-road, .race-side-car, .race-side-car-flame, .race-leader-fire, .race-last-shadow, .race-overtake-alert, .race-answer-card-hot::before, .race-storm-rain, .race-storm-lightning { animation: none; }
+  .race-horizontal-racer { transition-duration: .01ms; }
+}
+
+@media (max-width: 640px) {
+  .race-horizontal-track { min-height: 132px; }
+  .race-horizontal-racer { top: 82px; }
+  .race-horizontal-racer-label { bottom: 28px; }
+  .race-answer-card form { position: sticky; bottom: 8px; z-index: 10; padding: 8px; border: 1px solid rgba(139,120,255,.35); border-radius: 16px; background: rgba(15,23,42,.96); box-shadow: 0 12px 26px rgba(0,0,0,.35); }
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
