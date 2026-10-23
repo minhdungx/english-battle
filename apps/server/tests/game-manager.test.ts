@@ -38,12 +38,55 @@ describe("game-manager race mode", () => {
     expect(result.winnerId).toBe("p1");
   });
 
+  it("ranks Mine Sweeper finishers by their completion time", () => {
+    const game = new GameManager([word], { ...settings, gameMode: "MINE_SWEEPER" });
+    const later = player("p1", "Later", 1, 1000);
+    const earlier = player("p2", "Earlier", 1, 1000);
+    later.completionTimeMs = 20000;
+    earlier.completionTimeMs = 12000;
+
+    expect(game.buildGameEndPayload([later, earlier]).leaderboard.map((entry) => entry.playerId)).toEqual(["p2", "p1"]);
+  });
+
+  it("waits for every Mine Sweeper participant to finish or forfeit", () => {
+    const game = new GameManager([word], { ...settings, gameMode: "MINE_SWEEPER" });
+    const first = player("p1", "First", 1, 1000);
+    const second = player("p2", "Second", 0, 0);
+    game.initializeRace([first.id, second.id]);
+
+    first.completionTimeMs = 1000;
+    expect(game.isMineSweeperSettled([first, second])).toBe(false);
+
+    second.forfeited = true;
+    expect(game.isMineSweeperSettled([first, second])).toBe(true);
+  });
+
+  it("keeps the complete Mine Sweeper set for review", () => {
+    const words = ["apple", "beach"].map((word, index) => ({
+      id: String(index), word, meaning: word, level: "A1" as const, category: "General",
+    }));
+    const game = new GameManager(words, { ...settings, gameMode: "MINE_SWEEPER", roundsCount: 2 });
+
+    expect(game.buildGameEndPayload([player("p1", "One", 1, 0)]).reviewWords.map((item) => item.word)).toEqual(["apple", "beach"]);
+  });
+
+  it("reveals every letter in both race modes", () => {
+    const newRaceWord = { ...word, word: "racing" };
+    const game = new GameManager([newRaceWord], settings);
+    game.initializeRace(["p1"]);
+    const round = game.startRaceRound("p1", 0)!;
+
+    while (round.revealNextHint()) undefined;
+
+    expect(Object.keys(round.getPublicInfo().revealedPositions)).toHaveLength(newRaceWord.word.length);
+  });
+
   it("gives concurrent racers the same ordered word list", () => {
     const words = ["apple", "beach", "cloud", "dance"].map((word, index) => ({
       id: String(index), word, meaning: word, level: "A1" as const, category: "General",
     }));
     const game = new GameManager(words, settings);
-    game.initializeRace(["p1", "p2"], Date.now() + 10_000);
+    game.initializeRace(["p1", "p2"]);
 
     const first = game.startRaceRound("p1", 0)!;
     const second = game.startRaceRound("p2", 0)!;
@@ -53,23 +96,23 @@ describe("game-manager race mode", () => {
     expect(next.vocabulary.word).not.toBe(second.vocabulary.word);
   });
 
-  it("cycles the vocabulary after a racer exhausts their queue", () => {
+  it("stops issuing words after a racer exhausts the fixed queue", () => {
     const game = new GameManager([word], settings);
-    game.initializeRace(["p1"], Date.now() + 10_000);
+    game.initializeRace(["p1"]);
 
     game.startRaceRound("p1", 0);
     const repeated = game.startRaceRound("p1", 1);
 
-    expect(repeated?.vocabulary.word).toBe("race");
+    expect(repeated).toBeNull();
   });
 
-  it("moves a fast racer farther for the same correct answer", () => {
+  it("moves faster racers farther for a correct answer", () => {
     const game = new GameManager([word], settings);
     const fast = player("p1", "Fast", 0, 0);
     const slow = player("p2", "Slow", 0, 0);
 
-    game.recordRaceCorrectAnswer(fast, [fast, slow], 1000, 1000, word.word, 20000);
-    game.recordRaceCorrectAnswer(slow, [fast, slow], 1000, 18000, word.word, 20000);
+    game.recordRaceCorrectAnswer(fast, 1000, 1000, word.word, 20000);
+    game.recordRaceCorrectAnswer(slow, 1000, 18000, word.word, 20000);
 
     expect(fast.raceProgress).toBeGreaterThan(slow.raceProgress);
   });
@@ -79,11 +122,11 @@ describe("game-manager race mode", () => {
     const racer = player("p1", "Racer", 0, 0);
 
     for (let i = 0; i < 5; i += 1) {
-      game.recordRaceCorrectAnswer(racer, [racer], 1000, 1000, word.word, 20000);
+      game.recordRaceCorrectAnswer(racer, 1000, 1000, word.word, 20000);
     }
     expect(racer).toMatchObject({ streak: 5, fireTurnsVisible: 3, stormActive: false });
 
-    game.recordRaceCorrectAnswer(racer, [racer], 1000, 1000, word.word, 20000);
+    game.recordRaceCorrectAnswer(racer, 1000, 1000, word.word, 20000);
     expect(racer).toMatchObject({ streak: 6, fireTurnsVisible: 0, stormActive: true });
 
     game.resetPlayerStreak(racer);
@@ -95,24 +138,12 @@ describe("game-manager race mode", () => {
       id: String(index), word, meaning: word, level: "A1" as const, category: "General",
     }));
     const game = new GameManager(words, settings);
-    game.initializeRace(["p1", "p2"], Date.now() + 10_000);
+    game.initializeRace(["p1", "p2"]);
     game.startRaceRound("p1", 0);
     game.startRaceRound("p2", 0);
     game.startRaceRound("p1", 1);
 
     expect(game.buildGameEndPayload([player("p1", "One", 1, 0)]).reviewWords.map((item) => item.word)).toEqual(["apple", "beach"]);
-  });
-
-  it("awards a capped comeback only after a correct answer", () => {
-    const game = new GameManager([word], settings);
-    const leader = player("p1", "Leader", 0, 0);
-    const chaser = player("p2", "Chaser", 0, 0);
-    leader.raceProgress = 2;
-
-    const advance = game.recordRaceCorrectAnswer(chaser, [leader, chaser], 1000, 1000, word.word, 20000);
-
-    expect(advance.comebackBonus).toBeGreaterThan(0);
-    expect(chaser.raceProgress).toBeGreaterThan(advance.distance);
   });
 
   it("breaks a race tie by score, then total answer time", () => {

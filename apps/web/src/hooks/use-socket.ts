@@ -15,8 +15,8 @@ import {
   PlayerAnsweredNotification,
   PublicRoom,
   RaceAnswerRevealPayload,
-  AdventureActionResult,
 } from "@bufobia/shared";
+import { getSessionToken } from "@/lib/auth";
 
 export function useSocket() {
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
@@ -62,12 +62,15 @@ export function useSocket() {
 
       const room = reconnectRoomRef.current;
       if (room) {
-        socket.emit("room:join", {
-          roomCode: room.roomCode,
-          nickname: room.nickname,
-          playerToken: localStorage.getItem("player_token") || undefined,
-        }, (res) => {
-          if (res.success && res.playerId) setMyPlayerId(res.playerId);
+        void getSessionToken().then((authToken) => {
+          socket.emit("room:join", {
+            roomCode: room.roomCode,
+            nickname: room.nickname,
+            playerToken: localStorage.getItem("player_token") || undefined,
+            authToken,
+          }, (res) => {
+            if (res.success && res.playerId) setMyPlayerId(res.playerId);
+          });
         });
       }
       socket.emit("rooms:list", setOpenRooms);
@@ -176,12 +179,12 @@ export function useSocket() {
   }, []);
 
   const createRoom = useCallback(
-    (nickname: string, settings?: Partial<RoomSettings>): Promise<{ success: boolean; roomCode?: string; error?: string }> => {
+    async (nickname: string, settings?: Partial<RoomSettings>): Promise<{ success: boolean; roomCode?: string; error?: string }> => {
+      const socket = socketRef.current;
+      if (!socket) return { success: false, error: "Chưa kết nối đến server" };
+      const authToken = await getSessionToken();
       return new Promise((resolve) => {
-        if (!socketRef.current) {
-          return resolve({ success: false, error: "Chưa kết nối đến server" });
-        }
-        socketRef.current.emit("room:create", { nickname, settings }, (res) => {
+        socket.emit("room:create", { nickname, settings, authToken }, (res) => {
           if (res.success && res.playerToken) {
             localStorage.setItem("player_token", res.playerToken);
             localStorage.setItem("player_nickname", nickname);
@@ -195,14 +198,13 @@ export function useSocket() {
   );
 
   const joinRoom = useCallback(
-    (roomCode: string, nickname: string): Promise<{ success: boolean; error?: string }> => {
+    async (roomCode: string, nickname: string): Promise<{ success: boolean; error?: string }> => {
+      const socket = socketRef.current;
+      if (!socket) return { success: false, error: "Chưa kết nối đến server" };
+      const savedToken = typeof window !== "undefined" ? localStorage.getItem("player_token") || undefined : undefined;
+      const authToken = await getSessionToken();
       return new Promise((resolve) => {
-        if (!socketRef.current) {
-          return resolve({ success: false, error: "Chưa kết nối đến server" });
-        }
-        const savedToken = typeof window !== "undefined" ? localStorage.getItem("player_token") || undefined : undefined;
-
-        socketRef.current.emit("room:join", { roomCode, nickname, playerToken: savedToken }, (res) => {
+        socket.emit("room:join", { roomCode, nickname, playerToken: savedToken, authToken }, (res) => {
           if (res.success) {
             if (res.playerToken) {
               localStorage.setItem("player_token", res.playerToken);
@@ -283,27 +285,6 @@ export function useSocket() {
     socketRef.current?.emit("room:sync");
   }, []);
 
-  const skipRace = useCallback((roundId: string): Promise<AdventureActionResult> => {
-    return new Promise((resolve) => {
-      if (!socketRef.current) return resolve({ success: false, message: "Mất kết nối server" });
-      socketRef.current.emit("race:skip", { roundId }, (result) => resolve(result));
-    });
-  }, []);
-
-  const spinAdventure = useCallback((): Promise<AdventureActionResult> => {
-    return new Promise((resolve) => {
-      if (!socketRef.current) return resolve({ success: false, message: "Mất kết nối server" });
-      socketRef.current.emit("adventure:spin", resolve);
-    });
-  }, []);
-
-  const freezeAdventure = useCallback((targetPlayerId: string): Promise<AdventureActionResult> => {
-    return new Promise((resolve) => {
-      if (!socketRef.current) return resolve({ success: false, message: "Mất kết nối server" });
-      socketRef.current.emit("adventure:freeze", { targetPlayerId }, resolve);
-    });
-  }, []);
-
   const playAgain = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.emit("game:play-again");
@@ -333,9 +314,6 @@ export function useSocket() {
     updateSettings,
     submitAnswer,
     syncRoom,
-    skipRace,
-    spinAdventure,
-    freezeAdventure,
     playAgain,
   };
 }

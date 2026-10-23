@@ -31,7 +31,12 @@ export function generateRevealOrder(word: string): number[] {
   return shuffle(guessablePositions);
 }
 
-export function getMaxRevealedCount(guessableLength: number, maxRatio: number = GAME_CONSTANTS.MAX_REVEAL_RATIO): number {
+export function getMaxRevealedCount(
+  guessableLength: number,
+  maxRatio: number = GAME_CONSTANTS.MAX_REVEAL_RATIO,
+  revealAll: boolean = false
+): number {
+  if (revealAll) return guessableLength;
   if (guessableLength <= 1) return 0;
   // Always reserve at least 1 hidden letter so player must guess
   const calculatedMax = Math.floor(guessableLength * maxRatio);
@@ -40,7 +45,8 @@ export function getMaxRevealedCount(guessableLength: number, maxRatio: number = 
 
 export function calculateInitialRevealedPositions(
   word: string,
-  revealOrder: number[]
+  revealOrder: number[],
+  revealAll: boolean = false
 ): {
   revealedPositions: Record<number, string>;
   revealedGuessableIndices: Set<number>;
@@ -60,7 +66,7 @@ export function calculateInitialRevealedPositions(
   const guessableCount = getGuessablePositions(word).length;
   const initialCount = Math.min(
     getInitialRevealCount(guessableCount),
-    getMaxRevealedCount(guessableCount)
+    getMaxRevealedCount(guessableCount, GAME_CONSTANTS.MAX_REVEAL_RATIO, revealAll)
   );
 
   const initialIndices = revealOrder.slice(0, initialCount);
@@ -80,10 +86,11 @@ export function getNextReveal(
   word: string,
   revealOrder: number[],
   revealedGuessableIndices: Set<number>,
-  maxRatio: number = GAME_CONSTANTS.MAX_REVEAL_RATIO
+  maxRatio: number = GAME_CONSTANTS.MAX_REVEAL_RATIO,
+  revealAll: boolean = false
 ): { position: number; character: string } | null {
   const guessablePositions = getGuessablePositions(word);
-  const maxAllowed = getMaxRevealedCount(guessablePositions.length, maxRatio);
+  const maxAllowed = getMaxRevealedCount(guessablePositions.length, maxRatio, revealAll);
 
   if (revealedGuessableIndices.size >= maxAllowed) {
     return null;

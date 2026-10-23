@@ -35,7 +35,7 @@ export class RoomManager {
     if (settings.roundsCount !== undefined && ![5, 10, 15, 20].includes(settings.roundsCount)) {
       return "Số vòng chơi không hợp lệ";
     }
-    if (settings.gameMode !== undefined && !["CLASSIC", "RACE", "AMAZING_RACE"].includes(settings.gameMode)) {
+    if (settings.gameMode !== undefined && !["CLASSIC", "RACE", "AMAZING_RACE", "MINE_SWEEPER"].includes(settings.gameMode)) {
       return "Chế độ chơi không hợp lệ";
     }
     if (settings.roundDurationMs !== undefined && ![15000, 20000, 30000].includes(settings.roundDurationMs)) {
@@ -97,6 +97,8 @@ export class RoomManager {
       stormActive: false,
       maxStreak: 0,
       totalResponseTimeMs: 0,
+      completionTimeMs: undefined,
+      forfeited: false,
       isHost: true,
     };
 
@@ -154,7 +156,7 @@ export class RoomManager {
       const playerId = room.tokens.get(playerToken)!;
       const player = room.players.get(playerId);
 
-      if (player) {
+      if (player && !player.forfeited) {
         // Clear disconnect grace timer if running
         const existingTimer = room.disconnectTimers.get(playerId);
         if (existingTimer) {
@@ -192,6 +194,14 @@ export class RoomManager {
       return { success: false, error: "Tên người chơi này đã có người sử dụng trong phòng." };
     }
 
+    if (room.settings.gameMode === "MINE_SWEEPER" && room.status !== "LOBBY") {
+      return { success: false, error: "Trận Mine Sweeper đã bắt đầu, chỉ người đang chơi mới có thể kết nối lại." };
+    }
+
+    if (room.settings.gameMode === "MINE_SWEEPER" && room.players.size >= GAME_CONSTANTS.MAX_MINE_SWEEPER_PLAYERS) {
+      return { success: false, error: `Phòng Mine Sweeper tối đa ${GAME_CONSTANTS.MAX_MINE_SWEEPER_PLAYERS} người chơi.` };
+    }
+
     // 3. Create new player
     const playerId = `p_${Math.random().toString(36).substring(2, 9)}`;
     const newToken = this.generatePlayerToken();
@@ -211,6 +221,8 @@ export class RoomManager {
       stormActive: false,
       maxStreak: 0,
       totalResponseTimeMs: 0,
+      completionTimeMs: undefined,
+      forfeited: false,
       isHost: false,
     };
 
@@ -252,6 +264,17 @@ export class RoomManager {
       room.disconnectTimers.delete(playerId);
       // If player still not connected
       if (!player.connected) {
+        if (room.settings.gameMode === "MINE_SWEEPER" && room.status === "PLAYING") {
+          player.forfeited = true;
+          room.game?.clearRacePlayerTimers(playerId);
+          for (const [t, pId] of room.tokens.entries()) {
+            if (pId === playerId) room.tokens.delete(t);
+          }
+          if (player.isHost) this.migrateHost(room);
+          onGraceExpired?.(room, playerId);
+          return;
+        }
+
         room.players.delete(playerId);
         // Clean tokens
         for (const [t, pId] of room.tokens.entries()) {
@@ -304,6 +327,18 @@ export class RoomManager {
     }
 
     room.socketToPlayer.delete(socketId);
+
+    if (room.settings.gameMode === "MINE_SWEEPER" && room.status === "PLAYING") {
+      player.connected = false;
+      player.forfeited = true;
+      room.game?.clearRacePlayerTimers(playerId);
+      for (const [t, pId] of room.tokens.entries()) {
+        if (pId === playerId) room.tokens.delete(t);
+      }
+      if (player.isHost) this.migrateHost(room);
+      return { room, player };
+    }
+
     room.players.delete(playerId);
     for (const [t, pId] of room.tokens.entries()) {
       if (pId === playerId) {
@@ -372,6 +407,13 @@ export class RoomManager {
 
     const settingsError = this.validateSettings(newSettings);
     if (settingsError) return { success: false, error: settingsError };
+
+    if (
+      newSettings.gameMode === "MINE_SWEEPER" &&
+      room.players.size > GAME_CONSTANTS.MAX_MINE_SWEEPER_PLAYERS
+    ) {
+      return { success: false, error: `Mine Sweeper chỉ hỗ trợ tối đa ${GAME_CONSTANTS.MAX_MINE_SWEEPER_PLAYERS} người chơi.` };
+    }
 
     room.settings = {
       ...room.settings,
@@ -445,6 +487,7 @@ export class RoomManager {
         ? (playerId ? room.game.getRaceRound(playerId)?.getPublicInfo() : undefined)
         : room.game?.currentRound?.getPublicInfo(),
       raceEndsAt: room.game?.raceEndsAt,
+      gameStartedAt: room.game?.raceStartedAt,
     };
   }
 }

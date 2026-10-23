@@ -7,7 +7,7 @@ export type GameStatus =
   | "ROUND_RESULT"
   | "GAME_RESULT";
 
-export type GameMode = "CLASSIC" | "RACE" | "AMAZING_RACE";
+export type GameMode = "CLASSIC" | "RACE" | "AMAZING_RACE" | "MINE_SWEEPER";
 export type PartOfSpeech = "NOUN" | "VERB" | "ADJECTIVE" | "ADVERB" | "PHRASE" | "OTHER";
 
 export interface RoomSettings {
@@ -35,12 +35,9 @@ export interface Player {
   stormActive: boolean;
   maxStreak: number;
   totalResponseTimeMs: number;
+  completionTimeMs?: number;
+  forfeited?: boolean;
   isHost: boolean;
-  boostMultiplier?: 0.5 | 2;
-  boostEndsAt?: number;
-  frozenUntil?: number;
-  adventureSpinReady?: boolean;
-  adventurePendingFreeze?: boolean;
 }
 
 export interface VocabularyItem {
@@ -98,13 +95,6 @@ export interface PlayerAnswerSubmissionResult {
   message?: string;
 }
 
-export interface AdventureActionResult {
-  success: boolean;
-  effect?: "DOUBLE_POINTS" | "HALF_POINTS" | "FREEZE";
-  expiresAt?: number;
-  message?: string;
-}
-
 export interface PlayerAnsweredNotification {
   playerId: string;
   nickname: string;
@@ -135,11 +125,8 @@ export interface PlayerLeaderboardEntry {
   stormActive: boolean;
   connected: boolean;
   isHost: boolean;
-  boostMultiplier?: 0.5 | 2;
-  boostEndsAt?: number;
-  frozenUntil?: number;
-  adventureSpinReady?: boolean;
-  adventurePendingFreeze?: boolean;
+  completionTimeMs?: number;
+  forfeited?: boolean;
 }
 
 export interface RoundEndPayload {
@@ -200,6 +187,7 @@ export interface RoomState {
   settings: RoomSettings;
   round?: RoundPublicInfo;
   raceEndsAt?: number;
+  gameStartedAt?: number;
 }
 
 export interface PublicRoom {
@@ -231,15 +219,6 @@ export interface ClientToServerEvents {
   "answer:submit": (
     data: { roundId: string; answer: string },
     callback?: (result: PlayerAnswerSubmissionResult) => void
-  ) => void;
-  "race:skip": (
-    data: { roundId: string },
-    callback?: (result: AdventureActionResult) => void
-  ) => void;
-  "adventure:spin": (callback?: (result: AdventureActionResult) => void) => void;
-  "adventure:freeze": (
-    data: { targetPlayerId: string },
-    callback?: (result: AdventureActionResult) => void
   ) => void;
   "game:play-again": () => void;
 }

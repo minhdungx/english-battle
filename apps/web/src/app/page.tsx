@@ -238,12 +238,20 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-1">
-                {isRaceMode ? (
+                {gameMode === "RACE" ? (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Từ vựng</label>
+                    <div className="w-full rounded-xl border border-white/10 bg-[#28231d] px-3 py-2.5 text-xs font-semibold text-lime-300">Liên tục đến hết giờ</div>
+                  </div>
+                ) : gameMode === "AMAZING_RACE" || gameMode === "MINE_SWEEPER" ? (
                   <div>
                     <label className="block text-xs font-medium text-slate-400 mb-1">Số từ</label>
-                    <div className="w-full rounded-xl bg-[#28231d] border border-white/10 px-3 py-2.5 text-xs font-semibold text-lime-300">
-                      Không giới hạn
-                    </div>
+                    <select value={roundsCount} onChange={(e) => setRoundsCount(Number(e.target.value))} className="w-full bg-[#28231d] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-stone-200 focus:outline-none focus:border-[#ff7a3d]">
+                      <option value={5}>5 từ</option>
+                      <option value={10}>10 từ</option>
+                      <option value={15}>15 từ</option>
+                      <option value={20}>20 từ</option>
+                    </select>
                   </div>
                 ) : (
                   <div>
@@ -261,27 +269,25 @@ export default function HomePage() {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">
-                    {isRaceMode ? "Kết thúc sau" : "Thời gian"}
-                  </label>
-                  <select
-                    value={isRaceMode ? raceDurationMs : roundDurationMs}
-                    onChange={(e) => isRaceMode ? setRaceDurationMs(Number(e.target.value)) : setRoundDurationMs(Number(e.target.value))}
-                    className="w-full bg-[#28231d] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-stone-200 focus:outline-none focus:border-[#ff7a3d]"
-                  >
-                    {isRaceMode ? <>
-                      <option value={60000}>1 phút</option>
-                      <option value={120000}>2 phút</option>
-                      <option value={180000}>3 phút</option>
-                      <option value={300000}>5 phút</option>
-                    </> : <>
+                {gameMode === "RACE" ? <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Thời gian đua</label>
+                  <select value={raceDurationMs} onChange={(e) => setRaceDurationMs(Number(e.target.value))} className="w-full bg-[#28231d] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-stone-200 focus:outline-none focus:border-[#ff7a3d]">
+                    <option value={60000}>1 phút</option>
+                    <option value={120000}>2 phút</option>
+                    <option value={180000}>3 phút</option>
+                    <option value={300000}>5 phút</option>
+                  </select>
+                </div> : isRaceMode ? <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Điều kiện thắng</label>
+                  <div className="w-full rounded-xl border border-white/10 bg-[#28231d] px-3 py-2.5 text-xs font-semibold text-lime-300">Hoàn tất toàn bộ từ</div>
+                </div> : <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Thời gian</label>
+                  <select value={roundDurationMs} onChange={(e) => setRoundDurationMs(Number(e.target.value))} className="w-full bg-[#28231d] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-stone-200 focus:outline-none focus:border-[#ff7a3d]">
                       <option value={15000}>15 giây</option>
                       <option value={20000}>20 giây</option>
                       <option value={30000}>30 giây</option>
-                    </>}
                   </select>
-                </div>
+                </div>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -289,15 +295,27 @@ export default function HomePage() {
                   <label className="block text-xs font-medium text-slate-400 mb-1">
                     Chế độ chơi
                   </label>
-                  <select
-                    value={gameMode}
-                    onChange={(e) => setGameMode(e.target.value as GameMode)}
-                    className="w-full bg-[#28231d] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-stone-200 focus:outline-none focus:border-[#ff7a3d]"
-                  >
-                    <option value="CLASSIC">Cổ điển — tính điểm từng câu</option>
-                    <option value="RACE">Đua xe — giải nhiều từ nhất trong thời gian</option>
-                    <option value="AMAZING_RACE">Cuộc đua kỳ thú — vòng quay, skip, đóng băng</option>
-                  </select>
+                  <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Chế độ chơi">
+                    {[
+                      { value: "CLASSIC" as const, title: "Cổ điển", detail: "Tính điểm từng câu", icon: Trophy },
+                      { value: "RACE" as const, title: "Đua xe cổ điển", detail: "Đúng nhanh, xe đi xa", icon: Clock },
+                      { value: "AMAZING_RACE" as const, title: "Đua xe mới", detail: "Mở dần đến hết chữ", icon: Sparkles },
+                      { value: "MINE_SWEEPER" as const, title: "Mine Sweeper", detail: "Cùng đề, xếp hạng thời gian", icon: Users },
+                    ].map(({ value, title, detail, icon: Icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={gameMode === value}
+                        onClick={() => setGameMode(value)}
+                        className={`rounded-xl border p-3 text-left transition ${gameMode === value ? "border-[#ff7a3d] bg-[#ff6930]/15 text-[#fff7ea] shadow-[0_0_0_1px_rgba(255,105,48,.2)]" : "border-white/10 bg-[#28231d] text-stone-400 hover:border-white/25"}`}
+                      >
+                        <Icon className={`mb-2 h-4 w-4 ${gameMode === value ? "text-[#ff9a62]" : "text-stone-500"}`} />
+                        <span className="block text-xs font-black">{title}</span>
+                        <span className="mt-1 block text-[10px] leading-snug">{detail}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">
@@ -431,7 +449,7 @@ export default function HomePage() {
                   <p className="mt-3 text-sm font-bold text-[#fff7ea]">Host: {room.hostNickname}</p>
                   <div className="mt-3 flex items-center justify-between text-xs text-stone-400">
                     <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {room.playerCount} người</span>
-                    <span className="flex items-center gap-1"><Flag className="w-3.5 h-3.5" /> {room.settings.gameMode === "CLASSIC" ? `${room.currentRound || room.totalRounds} câu` : room.settings.gameMode === "AMAZING_RACE" ? "Cuộc đua kỳ thú" : "Đua xe"}</span>
+                    <span className="flex items-center gap-1"><Flag className="w-3.5 h-3.5" /> {room.settings.gameMode === "CLASSIC" ? `${room.currentRound || room.totalRounds} câu` : room.settings.gameMode === "AMAZING_RACE" ? "Đua xe mới" : "Đua xe cổ điển"}</span>
                   </div>
                 </button>
               ))}

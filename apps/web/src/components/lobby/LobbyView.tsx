@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   RoomState,
   RoomSettings,
+  GAME_CONSTANTS,
   VOCABULARY_CATEGORIES,
   VOCABULARY_LEVELS,
 } from "@bufobia/shared";
@@ -43,7 +44,7 @@ export function LobbyView({
   const me = roomState.players.find((p) => p.id === myPlayerId);
   const isHost = me?.isHost ?? false;
   const isRaceMode = roomState.settings.gameMode !== "CLASSIC";
-  const modeName = roomState.settings.gameMode === "AMAZING_RACE" ? "Cuộc đua kỳ thú" : roomState.settings.gameMode === "RACE" ? "Đua xe" : "Cổ điển";
+  const modeName = roomState.settings.gameMode === "MINE_SWEEPER" ? "Mine Sweeper" : roomState.settings.gameMode === "AMAZING_RACE" ? "Đua xe mới" : roomState.settings.gameMode === "RACE" ? "Đua xe cổ điển" : "Cổ điển";
 
   const handleCopy = () => {
     navigator.clipboard.writeText(roomState.code);
@@ -114,13 +115,20 @@ export function LobbyView({
             </span>
             <span className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
               {isRaceMode ? "Số từ: " : "Số câu: "}
-              <strong className="text-white">{isRaceMode ? "Không giới hạn" : roomState.settings.roundsCount}</strong>
+              <strong className="text-white">{roomState.settings.roundsCount}</strong>
             </span>
+            {roomState.settings.gameMode === "MINE_SWEEPER" && (
+              <span className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
+                Người chơi: <strong className="text-white">{connectedPlayers.length} / {GAME_CONSTANTS.MAX_MINE_SWEEPER_PLAYERS}</strong>
+              </span>
+            )}
             <span className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
-              {isRaceMode ? "Kết thúc sau: " : "Thời gian: "}
+              {roomState.settings.gameMode === "RACE" ? "Đua trong: " : isRaceMode ? "Về đích: " : "Thời gian: "}
               <strong className="text-white">
-                {isRaceMode
+                {roomState.settings.gameMode === "RACE"
                   ? `${roomState.settings.raceDurationMs / 60000} phút`
+                  : isRaceMode
+                  ? "Hoàn tất tất cả từ"
                   : `${roomState.settings.roundDurationMs / 1000}s`}
               </strong>
             </span>
@@ -146,22 +154,33 @@ export function LobbyView({
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
               >
                 <option value="CLASSIC">Cổ điển</option>
-                <option value="RACE">Đua xe (hết giờ, xa nhất thắng)</option>
-                <option value="AMAZING_RACE">Cuộc đua kỳ thú (vòng quay & đối kháng)</option>
+                <option value="RACE">Đua xe cổ điển (đúng nhanh, xe đi xa)</option>
+                <option value="AMAZING_RACE">Đua xe mới (mở dần đến hết chữ)</option>
+                <option value="MINE_SWEEPER">Mine Sweeper (cùng đề, tính thời gian)</option>
               </select>
             </div>
-            {isRaceMode ? (
+            {roomState.settings.gameMode === "RACE" ? (
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Thời gian cuộc đua</label>
-                <select
-                  value={roomState.settings.raceDurationMs}
-                  onChange={(e) => onUpdateSettings({ raceDurationMs: Number(e.target.value) })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                >
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Thời gian đua</label>
+                <select value={roomState.settings.raceDurationMs} onChange={(e) => onUpdateSettings({ raceDurationMs: Number(e.target.value) })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
                   <option value={60000}>1 phút</option>
                   <option value={120000}>2 phút</option>
                   <option value={180000}>3 phút</option>
                   <option value={300000}>5 phút</option>
+                </select>
+              </div>
+            ) : isRaceMode ? (
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Số từ cần hoàn tất</label>
+                <select
+                  value={roomState.settings.roundsCount}
+                  onChange={(e) => onUpdateSettings({ roundsCount: Number(e.target.value) })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value={5}>5 từ</option>
+                  <option value={10}>10 từ (Tiêu chuẩn)</option>
+                  <option value={15}>15 từ</option>
+                  <option value={20}>20 từ</option>
                 </select>
               </div>
             ) : (
@@ -180,7 +199,7 @@ export function LobbyView({
               </div>
             )}
 
-            <div>
+            {!isRaceMode && <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">
                 Thời gian mỗi câu
               </label>
@@ -195,7 +214,7 @@ export function LobbyView({
                 <option value={20000}>20 giây (Vừa)</option>
                 <option value={30000}>30 giây (Thoải mái)</option>
               </select>
-            </div>
+            </div>}
 
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">
@@ -241,23 +260,17 @@ export function LobbyView({
       {isRaceMode && (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
           <div className="rounded-2xl border border-orange-400/20 bg-orange-950/20 p-4">
-            <div className="text-xs font-black uppercase tracking-wider text-orange-300">⏱ Đua đến hết giờ</div>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">Không có mốc 5 chặng. Người đi xa nhất khi đồng hồ về 0 thắng.</p>
+            <div className="text-xs font-black uppercase tracking-wider text-orange-300">🏁 {roomState.settings.gameMode === "RACE" ? "Đua đến hết giờ" : roomState.settings.gameMode === "MINE_SWEEPER" ? "Chờ cả phòng hoàn tất" : "Hoàn tất để về đích"}</div>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">{roomState.settings.gameMode === "RACE" ? "Khi countdown kết thúc, xe đi xa nhất sẽ thắng." : roomState.settings.gameMode === "MINE_SWEEPER" ? "Mọi người cùng giải một bộ đề; trận chỉ kết thúc khi tất cả người chơi hoàn thành." : "Người đầu tiên trả lời đúng toàn bộ số từ của trận sẽ thắng."}</p>
           </div>
           <div className="rounded-2xl border border-amber-400/20 bg-amber-950/20 p-4">
-            <div className="text-xs font-black uppercase tracking-wider text-amber-300">⚡ Tốc độ = quãng đường</div>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">Trả lời đúng càng sớm, xe tiến càng xa.</p>
+            <div className="text-xs font-black uppercase tracking-wider text-amber-300">⚡ {roomState.settings.gameMode === "RACE" ? "Nhanh hơn, xa hơn" : "Mỗi từ = một chặng"}</div>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">{roomState.settings.gameMode === "RACE" ? "Trả lời càng sớm trong mỗi lượt, xe tiến càng xa." : "Mỗi đáp án đúng đưa xe tiến một chặng."}</p>
           </div>
           <div className="rounded-2xl border border-lime-400/20 bg-lime-950/20 p-4">
-            <div className="text-xs font-black uppercase tracking-wider text-lime-300">🔥 Comeback boost</div>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">Người phía sau vẫn có cơ hội bám đuổi.</p>
+            <div className="text-xs font-black uppercase tracking-wider text-lime-300">💡 Manh mối dần mở</div>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">Cả hai chế độ đua đều mở dần đến khi lộ toàn bộ từ.</p>
           </div>
-          {roomState.settings.gameMode === "AMAZING_RACE" && (
-            <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-950/20 p-4 sm:col-span-3">
-              <div className="text-xs font-black uppercase tracking-wider text-fuchsia-300">🎡 Vòng quay kỳ thú</div>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">Mỗi 25 giây có vòng quay riêng: X2 điểm, /2 điểm hoặc chọn đối thủ để đóng băng. Skip mở trong 5 giây cuối.</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -267,7 +280,7 @@ export function LobbyView({
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-indigo-400" />
             <h2 className="text-lg font-bold text-white">
-              Danh sách người chơi ({connectedPlayers.length})
+              Danh sách người chơi ({connectedPlayers.length}{roomState.settings.gameMode === "MINE_SWEEPER" ? ` / ${GAME_CONSTANTS.MAX_MINE_SWEEPER_PLAYERS}` : ""})
             </h2>
           </div>
         </div>

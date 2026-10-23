@@ -18,15 +18,15 @@ export class GameManager {
   public hintIntervalTimer: NodeJS.Timeout | null = null;
   public readonly gameMode: GameMode;
   public raceEndsAt?: number;
+  public raceStartedAt?: number;
   public raceTimer: NodeJS.Timeout | null = null;
   public readonly raceRounds = new Map<string, RoundManager>();
   public readonly raceRoundTimers = new Map<string, NodeJS.Timeout>();
   public readonly raceHintTimers = new Map<string, NodeJS.Timeout>();
   public readonly raceExtraHintTimers = new Map<string, NodeJS.Timeout>();
-  public readonly adventureSpinTimers = new Map<string, NodeJS.Timeout>();
+  public readonly raceParticipantIds = new Set<string>();
   private readonly raceWordQueues = new Map<string, VocabularyItem[]>();
   private readonly raceWordHistory: VocabularyItem[] = [];
-  private readonly raceComebackCooldowns = new Map<string, number>();
 
   private fastestAnswerRecord?: {
     playerId: string;
@@ -98,32 +98,24 @@ export class GameManager {
 
   public recordRaceCorrectAnswer(
     player: Player,
-    players: Player[],
     score: number,
     responseTimeMs: number,
     word: string,
     roundDurationMs: number
   ): { distance: number; comebackBonus: number } {
-    const ranking = [...players].sort((a, b) => b.raceProgress - a.raceProgress || b.score - a.score);
-    const rank = ranking.findIndex((racer) => racer.id === player.id);
-    const racerAhead = rank > 0 ? ranking[rank - 1] : undefined;
-    const gap = racerAhead ? racerAhead.raceProgress - player.raceProgress : 0;
-    const canComeback = gap >= 1 && player.correctCount >= (this.raceComebackCooldowns.get(player.id) ?? 0);
     this.recordCorrectAnswer(player, score, responseTimeMs, word);
     const remainingRatio = Math.max(0, Math.min(1, 1 - responseTimeMs / roundDurationMs));
     const distance = 0.35 + 0.65 * remainingRatio;
-    const comebackBonus = canComeback ? distance * 0.2 : 0;
-    player.raceProgress += distance + comebackBonus;
-    if (canComeback) this.raceComebackCooldowns.set(player.id, player.correctCount + 2);
-    return { distance, comebackBonus };
+    player.raceProgress += distance;
+    return { distance, comebackBonus: 0 };
   }
 
   public isRaceMode(): boolean {
-    return this.gameMode === "RACE" || this.gameMode === "AMAZING_RACE";
+    return this.gameMode === "RACE" || this.gameMode === "AMAZING_RACE" || this.gameMode === "MINE_SWEEPER";
   }
 
-  public isAmazingRace(): boolean {
-    return this.gameMode === "AMAZING_RACE";
+  public isMineSweeper(): boolean {
+    return this.gameMode === "MINE_SWEEPER";
   }
 
   public finalizeRoundStreaks(players: Player[]): void {
@@ -145,20 +137,32 @@ export class GameManager {
     return this.currentRoundIndex >= this.totalRounds;
   }
 
-  public initializeRace(playerIds: string[], endsAt: number): void {
+  public initializeRace(playerIds: string[], endsAt?: number): void {
     this.raceEndsAt = endsAt;
+    this.raceStartedAt = Date.now();
     this.raceRounds.clear();
     this.raceWordQueues.clear();
     this.raceWordHistory.length = 0;
-    this.raceComebackCooldowns.clear();
+    this.raceParticipantIds.clear();
 
-    for (const playerId of playerIds) this.raceWordQueues.set(playerId, [...this.words]);
+    for (const playerId of playerIds) {
+      this.raceParticipantIds.add(playerId);
+      this.raceWordQueues.set(playerId, [...this.words]);
+    }
+  }
+
+  public isMineSweeperSettled(players: Player[]): boolean {
+    if (!this.isMineSweeper() || this.raceParticipantIds.size === 0) return false;
+    const playersById = new Map(players.map((player) => [player.id, player]));
+    return Array.from(this.raceParticipantIds).every((playerId) => {
+      const player = playersById.get(playerId);
+      return !player || player.completionTimeMs !== undefined || player.forfeited === true;
+    });
   }
 
   public startRaceRound(playerId: string, progress: number): RoundManager | null {
-    const remainingMs = (this.raceEndsAt ?? 0) - Date.now();
+    const remainingMs = this.raceEndsAt ? this.raceEndsAt - Date.now() : Infinity;
     if (remainingMs <= 0) return null;
-
     const previousRound = this.raceRounds.get(playerId);
     this.raceRounds.delete(playerId);
     const word = this.takeRaceWord(playerId);
@@ -173,9 +177,10 @@ export class GameManager {
     const round = new RoundManager({
       roundId: `race_${playerId}_${Date.now()}`,
       roundNumber: progress + 1,
-      totalRounds: 0,
+      totalRounds: this.raceEndsAt ? 0 : this.totalRounds,
       vocabulary: word,
-      durationMs: Math.min(remainingMs, this.roundDurationMs),
+      durationMs: this.raceEndsAt ? Math.min(remainingMs, this.roundDurationMs) : 0,
+      revealAllHints: true,
     });
     this.raceRounds.set(playerId, round);
     return round;
@@ -202,7 +207,7 @@ export class GameManager {
   private takeRaceWord(playerId: string): VocabularyItem | undefined {
     const queue = this.raceWordQueues.get(playerId) ?? [];
     this.raceWordQueues.set(playerId, queue);
-    if (queue.length === 0) queue.push(...this.words);
+    if (queue.length === 0 && this.raceEndsAt) queue.push(...this.words);
     return queue.shift();
   }
 
@@ -220,8 +225,6 @@ export class GameManager {
       this.raceTimer = null;
     }
     for (const playerId of this.raceRounds.keys()) this.clearRacePlayerTimers(playerId);
-    for (const timer of this.adventureSpinTimers.values()) clearInterval(timer);
-    this.adventureSpinTimers.clear();
   }
 
   public buildGameEndPayload(players: Player[]): GameEndPayload {
@@ -237,15 +240,14 @@ export class GameManager {
         stormActive: p.stormActive,
         connected: p.connected,
         isHost: p.isHost,
-        boostMultiplier: p.boostMultiplier,
-        boostEndsAt: p.boostEndsAt,
-        frozenUntil: p.frozenUntil,
-        adventureSpinReady: p.adventureSpinReady,
-        adventurePendingFreeze: p.adventurePendingFreeze,
         totalResponseTimeMs: p.totalResponseTimeMs,
+        completionTimeMs: p.completionTimeMs,
+        forfeited: p.forfeited,
       }))
       .sort((a, b) =>
-        this.isRaceMode()
+        this.isMineSweeper()
+          ? (a.completionTimeMs ?? Infinity) - (b.completionTimeMs ?? Infinity) || b.correctCount - a.correctCount
+          : this.isRaceMode()
           ? b.raceProgress - a.raceProgress || b.score - a.score || a.totalResponseTimeMs - b.totalResponseTimeMs
           : b.score - a.score
       )
@@ -302,7 +304,7 @@ export class GameManager {
       statistics,
       gameMode: this.gameMode,
       winnerId: this.isRaceMode() ? leaderboard[0]?.playerId : undefined,
-      reviewWords: (this.isRaceMode() ? this.raceWordHistory : this.words.slice(0, this.totalRounds)).map((word) => ({
+      reviewWords: (this.isMineSweeper() ? this.words.slice(0, this.totalRounds) : this.isRaceMode() ? this.raceWordHistory : this.words.slice(0, this.totalRounds)).map((word) => ({
         id: word.id,
         word: word.word,
         meaning: word.meaning,

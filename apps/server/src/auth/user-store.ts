@@ -109,10 +109,33 @@ export class UserStore {
       );
       CREATE INDEX IF NOT EXISTS auth_verifications_identifier_idx ON auth_verifications (identifier);
       CREATE TABLE IF NOT EXISTS rate_limit (
-        key TEXT PRIMARY KEY,
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
         count INTEGER NOT NULL,
         last_request BIGINT NOT NULL
       );
+      ALTER TABLE rate_limit ADD COLUMN IF NOT EXISTS id TEXT;
+      UPDATE rate_limit SET id = key WHERE id IS NULL;
+      ALTER TABLE rate_limit ALTER COLUMN id SET NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS rate_limit_key_idx ON rate_limit (key);
+      DO $migration$
+      DECLARE current_primary_key TEXT;
+      BEGIN
+        SELECT conname INTO current_primary_key
+        FROM pg_constraint
+        WHERE conrelid = 'rate_limit'::regclass
+          AND contype = 'p'
+          AND pg_get_constraintdef(oid) = 'PRIMARY KEY (key)';
+        IF current_primary_key IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE rate_limit DROP CONSTRAINT %I', current_primary_key);
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'rate_limit'::regclass AND contype = 'p'
+        ) THEN
+          ALTER TABLE rate_limit ADD PRIMARY KEY (id);
+        END IF;
+      END $migration$;
     `);
   }
 

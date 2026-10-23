@@ -34,6 +34,38 @@ describe("room-manager", () => {
     expect(rooms.updateSettings("socket-1", { gameMode: "UNKNOWN" as never })).toMatchObject({ success: false });
   });
 
+  it("accepts Mine Sweeper rooms", () => {
+    const rooms = new RoomManager();
+    const { room } = rooms.createRoom("Host", "socket-1", { gameMode: "MINE_SWEEPER" });
+
+    expect(room.settings.gameMode).toBe("MINE_SWEEPER");
+  });
+
+  it("limits Mine Sweeper rooms to five players and blocks new players after the match starts", () => {
+    const rooms = new RoomManager();
+    const { room, playerToken } = rooms.createRoom("Host", "socket-1", { gameMode: "MINE_SWEEPER" });
+
+    for (let index = 2; index <= 5; index += 1) {
+      expect(rooms.joinRoom(room.code, `P${index}`, `socket-${index}`).success).toBe(true);
+    }
+    expect(rooms.joinRoom(room.code, "P6", "socket-6")).toMatchObject({ success: false, error: expect.stringContaining("tối đa") });
+
+    room.status = "PLAYING";
+    expect(rooms.joinRoom(room.code, "Late", "socket-late")).toMatchObject({ success: false, error: expect.stringContaining("đã bắt đầu") });
+    expect(rooms.joinRoom(room.code, "Host", "socket-reconnect", playerToken)).toMatchObject({ success: true, isReconnect: true });
+  });
+
+  it("keeps a Mine Sweeper player as DNF when they leave during a match", () => {
+    const rooms = new RoomManager();
+    const { room } = rooms.createRoom("Host", "socket-1", { gameMode: "MINE_SWEEPER" });
+    const joined = rooms.joinRoom(room.code, "Guest", "socket-2");
+    room.status = "PLAYING";
+
+    rooms.leaveRoom("socket-2");
+
+    expect(room.players.get(joined.player!.id)).toMatchObject({ connected: false, forfeited: true });
+  });
+
   it("lists joinable rooms without exposing player details", () => {
     const rooms = new RoomManager();
     const { room } = rooms.createRoom("Host", "socket-1");

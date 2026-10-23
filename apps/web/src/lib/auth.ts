@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient } from "./auth-client";
+import { authClient, getAuthApiUrl } from "./auth-client";
 
 export interface AuthUser {
   id: string;
@@ -11,7 +11,7 @@ export interface AuthUser {
 }
 
 export function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === "production" ? window.location.origin : "http://localhost:3001");
+  return getAuthApiUrl();
 }
 
 export async function getSession(): Promise<AuthUser | null> {
@@ -29,6 +29,15 @@ export async function getSession(): Promise<AuthUser | null> {
     };
   } catch {
     return null;
+  }
+}
+
+export async function getSessionToken(): Promise<string | undefined> {
+  try {
+    const result = await authClient.getSession();
+    return result.data?.session.token;
+  } catch {
+    return undefined;
   }
 }
 

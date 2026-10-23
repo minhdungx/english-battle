@@ -28,6 +28,7 @@ export function GameResultView({
   onLeaveRoom,
 }: GameResultViewProps) {
   const isRaceMode = data.gameMode !== "CLASSIC";
+  const isMineSweeper = data.gameMode === "MINE_SWEEPER";
   const partOfSpeechLabels = {
     NOUN: "Danh từ", VERB: "Động từ", ADJECTIVE: "Tính từ", ADVERB: "Trạng từ", PHRASE: "Cụm từ", OTHER: "Loại từ khác",
   } as const;
@@ -79,19 +80,26 @@ export function GameResultView({
   const top1 = data.podium[0];
   const top2 = data.podium[1];
   const top3 = data.podium[2];
+  const resultValue = (player: typeof top1) => isMineSweeper
+    ? player?.completionTimeMs === undefined ? "DNF" : `${(player.completionTimeMs / 1000).toFixed(1)} giây`
+    : isRaceMode
+      ? `${player?.raceProgress.toFixed(1) ?? "0.0"} chặng`
+      : `${player?.score.toLocaleString() ?? "0"} điểm`;
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8 animate-pop pb-12">
       {/* Title */}
       <div className="text-center pt-2">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-extrabold text-xs uppercase tracking-wider mb-2">
-          <Trophy className="w-4 h-4" /> {isRaceMode ? "HẾT GIỜ · KẾT QUẢ ĐƯỜNG ĐUA" : "KẾT QUẢ CHUNG CUỘC"}
+          <Trophy className="w-4 h-4" /> {isMineSweeper ? "MINE SWEEPER · KẾT QUẢ" : isRaceMode ? "HẾT GIỜ · KẾT QUẢ ĐƯỜNG ĐUA" : "KẾT QUẢ CHUNG CUỘC"}
         </div>
         <h1 className="text-3xl md:text-5xl font-black text-white">
-          {isRaceMode ? `${top1?.nickname ?? "Người chơi"} thắng cuộc` : "BẢNG VINH DANH"}
+          {isMineSweeper && top1?.completionTimeMs === undefined ? "KHÔNG CÓ NGƯỜI HOÀN TẤT" : isRaceMode ? `${top1?.nickname ?? "Người chơi"} thắng cuộc` : "BẢNG VINH DANH"}
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          {isRaceMode
+          {isMineSweeper
+            ? top1?.completionTimeMs === undefined ? "Các người chơi đã rời trận trước khi hoàn tất" : `Hoàn tất trong ${(top1.completionTimeMs / 1000).toFixed(1)} giây`
+            : isRaceMode
             ? `Dẫn đầu với ${top1?.raceProgress.toFixed(1) ?? "0.0"} chặng`
             : `Hoàn thành xuất sắc ${data.totalRounds} câu hỏi`}
         </p>
@@ -107,7 +115,7 @@ export function GameResultView({
               {top2.nickname}
             </div>
             <div className="text-xs font-mono font-bold text-slate-400 mb-2">
-              {isRaceMode ? `${top2.raceProgress.toFixed(1)} chặng` : `${top2.score.toLocaleString()} điểm`}
+              {resultValue(top2)}
             </div>
             <div className="w-full h-24 md:h-32 rounded-t-2xl bg-gradient-to-t from-slate-800 to-slate-700/80 border-t-2 border-x-2 border-slate-500/40 flex items-center justify-center font-black text-2xl md:text-4xl text-slate-400 shadow-lg">
               2
@@ -125,7 +133,7 @@ export function GameResultView({
               {top1.nickname}
             </div>
             <div className="text-sm font-mono font-extrabold text-amber-400 mb-2">
-              {isRaceMode ? `${top1.raceProgress.toFixed(1)} chặng` : `${top1.score.toLocaleString()} điểm`}
+              {resultValue(top1)}
             </div>
             <div className="w-full h-32 md:h-44 rounded-t-2xl bg-gradient-to-t from-amber-600/30 via-amber-500/40 to-amber-400/50 border-t-2 border-x-2 border-amber-400 flex items-center justify-center font-black text-3xl md:text-5xl text-amber-300 shadow-2xl shadow-amber-500/20">
               1
@@ -141,7 +149,7 @@ export function GameResultView({
               {top3.nickname}
             </div>
             <div className="text-xs font-mono font-bold text-amber-700/80 mb-2">
-              {isRaceMode ? `${top3.raceProgress.toFixed(1)} chặng` : `${top3.score.toLocaleString()} điểm`}
+              {resultValue(top3)}
             </div>
             <div className="w-full h-18 md:h-24 rounded-t-2xl bg-gradient-to-t from-amber-950/40 to-amber-900/40 border-t-2 border-x-2 border-amber-700/40 flex items-center justify-center font-black text-xl md:text-3xl text-amber-700 shadow-md">
               3
@@ -185,7 +193,9 @@ export function GameResultView({
                 {data.statistics.mostCorrect.nickname}
               </div>
               <div className="text-xs text-emerald-400 font-mono">
-                {isRaceMode
+                {isMineSweeper
+                  ? "Thời gian hoàn tất"
+                  : isRaceMode
                   ? `${data.statistics.mostCorrect.count} từ đúng`
                   : `${data.statistics.mostCorrect.count} / ${data.totalRounds} câu đúng`}
               </div>
@@ -239,7 +249,7 @@ export function GameResultView({
                   Đúng: <strong className="text-slate-200">{player.correctCount}</strong>
                 </div>
                 <div className="font-mono font-extrabold text-base md:text-lg text-amber-400">
-                  {isRaceMode ? `${player.raceProgress.toFixed(1)} chặng` : player.score.toLocaleString()}
+                  {resultValue(player)}
                 </div>
               </div>
             </div>

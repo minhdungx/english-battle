@@ -39,9 +39,6 @@ export default function RoomPage() {
     updateSettings,
     submitAnswer,
     syncRoom,
-    skipRace,
-    spinAdventure,
-    freezeAdventure,
     playAgain,
   } = useSocket();
 
@@ -196,11 +193,8 @@ export default function RoomPage() {
                       stormActive: p.stormActive,
                       connected: p.connected,
                       isHost: p.isHost,
-                      boostMultiplier: p.boostMultiplier,
-                      boostEndsAt: p.boostEndsAt,
-                      frozenUntil: p.frozenUntil,
-                      adventureSpinReady: p.adventureSpinReady,
-                      adventurePendingFreeze: p.adventurePendingFreeze,
+                      completionTimeMs: p.completionTimeMs,
+                      forfeited: p.forfeited,
                     }))}
                     myPlayerId={myPlayerId}
                     hasAnsweredCorrectly={myAnswerResult?.correct ?? false}
@@ -210,12 +204,10 @@ export default function RoomPage() {
                     onRoundExpired={syncRoom}
                     gameMode={roomState.settings.gameMode}
                     raceEndsAt={roomState.raceEndsAt}
+                    gameStartedAt={roomState.gameStartedAt}
                     raceDurationMs={roomState.settings.raceDurationMs}
                     extraPronunciation={extraPronunciation}
                     raceAnswerReveal={raceAnswerReveal}
-                    onSkipRace={skipRace}
-                    onSpinAdventure={spinAdventure}
-                    onFreezeAdventure={freezeAdventure}
                   />
 
                   {roomState.settings.gameMode === "CLASSIC" && roomState.status === "ROUND_RESULT" && roundEndData && (

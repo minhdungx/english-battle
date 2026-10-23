@@ -10,6 +10,7 @@ export const GAME_CONSTANTS = {
   BASE_SCORE: 1000,
   DISCONNECT_GRACE_PERIOD_MS: 45000,
   ROOM_CODE_LENGTH: 5,
+  MAX_MINE_SWEEPER_PLAYERS: 5,
 } as const;
 
 export const VOCABULARY_LEVELS = ["ALL", "A1", "A2", "B1", "B2", "C1"] as const;

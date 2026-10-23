@@ -70,13 +70,7 @@ BETTER_AUTH_SECRET=chuoi-ngau-nhien-dai
 BETTER_AUTH_URL=http://localhost:3001
 AUTH_FRONTEND_URL=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:3001
-RESEND_API_KEY=...
-AUTH_EMAIL_FROM=English Battle <noreply@example.com>
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
 ```
-
-`RESEND_*` và `GOOGLE_*` là tùy chọn khi test local. Nếu chưa có Resend, OTP sẽ in ở terminal server; muốn test Google thì callback là `http://localhost:3001/api/auth/callback/google`.
 
 Khi deploy, đổi bốn URL ở trên thành domain thật và giữ `BETTER_AUTH_SECRET` cố định.
 
@@ -85,8 +79,6 @@ Chạy migration một lần trên database hiện tại trước khi bật serv
 ```bash
 psql "$DATABASE_URL" -f apps/server/src/auth/migration.sql
 ```
-
-Google OAuth callback là `https://api.example.com/api/auth/callback/google`. Ở môi trường development, nếu chưa cấu hình Resend, OTP được in trong log server để kiểm thử.
 
 ---
 

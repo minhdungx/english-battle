@@ -1,8 +1,7 @@
 import "../env.js";
-import { createHash } from "node:crypto";
 import { Pool } from "pg";
 import { betterAuth } from "better-auth";
-import { bearer, emailOTP } from "better-auth/plugins";
+import { bearer } from "better-auth/plugins";
 import { fromNodeHeaders } from "better-auth/node";
 import type { IncomingHttpHeaders } from "node:http";
 import { hashPassword as legacyHashPassword, verifyPassword as legacyVerifyPassword } from "./user-store.js";
@@ -19,48 +18,12 @@ if (isProduction && !process.env.BETTER_AUTH_SECRET) throw new Error("BETTER_AUT
 if (isProduction && !process.env.BETTER_AUTH_URL) throw new Error("BETTER_AUTH_URL is required in production");
 if (isProduction && !process.env.AUTH_FRONTEND_URL) throw new Error("AUTH_FRONTEND_URL is required in production");
 
-function hashOtp(otp: string): Promise<string> {
-  return Promise.resolve(createHash("sha256").update(otp).digest("hex"));
-}
-
 async function hashPassword(password: string): Promise<string> {
   return legacyHashPassword(password);
 }
 
 async function verifyPassword({ password, hash }: { password: string; hash: string }): Promise<boolean> {
   return legacyVerifyPassword(password, hash);
-}
-
-async function sendAuthEmail(email: string, otp: string, type: "sign-in" | "email-verification" | "forget-password" | "change-email"): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.AUTH_EMAIL_FROM;
-
-  if (!apiKey || !from) {
-    if (isProduction) throw new Error("Email delivery is not configured");
-    console.info(`[auth] ${type} OTP for ${email}: ${otp}`);
-    return;
-  }
-
-  const subject = type === "email-verification" || type === "change-email"
-    ? "Xác thực email English Battle"
-    : type === "forget-password"
-      ? "Mã khôi phục mật khẩu English Battle"
-      : "Mã đăng nhập English Battle";
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject,
-      text: `Mã xác nhận của bạn là ${otp}. Mã có hiệu lực trong 5 phút.`,
-    }),
-  });
-
-  if (!response.ok) throw new Error(`Email provider returned ${response.status}`);
 }
 
 export const auth = betterAuth({
@@ -76,9 +39,11 @@ export const auth = betterAuth({
     fields: { lastRequest: "last_request" },
   },
   database: pool,
-  defaultCookieAttributes: {
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+  advanced: {
+    defaultCookieAttributes: {
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+    },
   },
   user: {
     modelName: "users",
@@ -139,39 +104,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
-    requireEmailVerification: true,
+    requireEmailVerification: false,
     minPasswordLength: 8,
     maxPasswordLength: 128,
     revokeSessionsOnPasswordReset: true,
     password: { hash: hashPassword, verify: verifyPassword },
   },
-  ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-    ? {
-        socialProviders: {
-          google: {
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            mapProfileToUser: (profile) => ({
-              name: String(profile.name || profile.email?.split("@")[0] || "Player").trim().slice(0, 20) || "Player",
-            }),
-          },
-        },
-      }
-    : {}),
-  plugins: [
-    bearer(),
-    emailOTP({
-      sendVerificationOnSignUp: true,
-      overrideDefaultEmailVerification: true,
-      otpLength: 6,
-      expiresIn: 300,
-      allowedAttempts: 3,
-      storeOTP: { hash: hashOtp },
-      sendVerificationOTP: async ({ email, otp, type }) => {
-        await sendAuthEmail(email, otp, type);
-      },
-    }),
-  ],
+  plugins: [bearer()],
 });
 
 function toAuthUser(user: { id: string; name: string; email: string; createdAt: Date; experience?: number }): AuthUser {

@@ -35,6 +35,7 @@ export class RoundManager {
   private revealOrder: number[];
   private revealedPositions: Record<number, string>;
   private revealedGuessableIndices: Set<number>;
+  private readonly revealAllHints: boolean;
   private playerAnswers: Map<string, PlayerSubmissionRecord> = new Map();
   private lastSubmissionTimes: Map<string, number> = new Map();
 
@@ -45,6 +46,7 @@ export class RoundManager {
     vocabulary: VocabularyItem;
     durationMs?: number;
     now?: number;
+    revealAllHints?: boolean;
   }) {
     this.roundId = params.roundId;
     this.roundNumber = params.roundNumber;
@@ -55,9 +57,10 @@ export class RoundManager {
     const currentTime = params.now ?? Date.now();
     this.startedAt = currentTime;
     this.endsAt = currentTime + this.durationMs;
+    this.revealAllHints = params.revealAllHints ?? false;
 
     this.revealOrder = generateRevealOrder(this.vocabulary.word);
-    const initial = calculateInitialRevealedPositions(this.vocabulary.word, this.revealOrder);
+    const initial = calculateInitialRevealedPositions(this.vocabulary.word, this.revealOrder, this.revealAllHints);
     this.revealedPositions = initial.revealedPositions;
     this.revealedGuessableIndices = initial.revealedGuessableIndices;
   }
@@ -100,7 +103,7 @@ export class RoundManager {
     message?: string;
   } {
     // 1. Check if round is already expired
-    if (now > this.endsAt) {
+    if (this.durationMs > 0 && now > this.endsAt) {
       return {
         success: false,
         isCorrect: false,
@@ -181,7 +184,9 @@ export class RoundManager {
     const next = getNextReveal(
       this.vocabulary.word,
       this.revealOrder,
-      this.revealedGuessableIndices
+      this.revealedGuessableIndices,
+      undefined,
+      this.revealAllHints
     );
 
     if (!next) {

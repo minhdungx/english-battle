@@ -150,7 +150,7 @@ export function setupSocketHandlers(
     game.raceHintTimers.set(player.id, hintTimer);
 
     const pronunciation = round.vocabulary.pronunciation;
-    if (pronunciation) {
+    if (pronunciation && round.durationMs > 0) {
       const extraHintTimer = setTimeout(() => {
         if (room.status !== "PLAYING" || game.getRaceRound(player.id)?.roundId !== round.roundId) return;
         io.to(player.socketId).emit("round:extra-hint", {
@@ -161,18 +161,21 @@ export function setupSocketHandlers(
       game.raceExtraHintTimers.set(player.id, extraHintTimer);
     }
 
-    const roundTimer = setTimeout(() => {
-      if (game.getRaceRound(player.id)?.roundId !== round.roundId || room.status !== "PLAYING") return;
-      game.resetPlayerStreak(player);
-      io.to(player.socketId).emit("race:answer-reveal", {
-        roundId: round.roundId,
-        answer: round.vocabulary.word.toUpperCase(),
-        meaning: round.vocabulary.meaning,
-        pronunciation: round.vocabulary.pronunciation,
-      });
-      startRaceRound(room, player.id);
-    }, round.durationMs);
-    game.raceRoundTimers.set(player.id, roundTimer);
+    if (round.durationMs > 0) {
+      const roundTimer = setTimeout(() => {
+        if (game.getRaceRound(player.id)?.roundId !== round.roundId || room.status !== "PLAYING") return;
+        game.resetPlayerStreak(player);
+        io.to(player.socketId).emit("race:answer-reveal", {
+          roundId: round.roundId,
+          answer: round.vocabulary.word.toUpperCase(),
+          meaning: round.vocabulary.meaning,
+          pronunciation: round.vocabulary.pronunciation,
+        });
+        startRaceRound(room, player.id);
+      }, round.durationMs);
+      game.raceRoundTimers.set(player.id, roundTimer);
+    }
+
     broadcastRoomState(room);
   }
 
@@ -182,25 +185,14 @@ export function setupSocketHandlers(
 
     room.status = "PLAYING";
     const activePlayers = Array.from(room.players.values()).filter((player) => player.connected);
-    const raceEndsAt = Date.now() + room.settings.raceDurationMs;
+    const raceEndsAt = game.gameMode === "RACE" ? Date.now() + room.settings.raceDurationMs : undefined;
     game.initializeRace(activePlayers.map((player) => player.id), raceEndsAt);
-    game.raceTimer = setTimeout(() => endGame(room), Math.max(0, raceEndsAt - Date.now()));
+    if (raceEndsAt) {
+      game.raceTimer = setTimeout(() => endGame(room), Math.max(0, raceEndsAt - Date.now()));
+    }
 
     for (const player of activePlayers) {
-      player.adventureSpinReady = false;
-      player.adventurePendingFreeze = false;
-      player.boostMultiplier = undefined;
-      player.boostEndsAt = undefined;
-      player.frozenUntil = undefined;
       startRaceRound(room, player.id);
-      if (game.isAmazingRace()) {
-        const spinTimer = setInterval(() => {
-          if (room.status !== "PLAYING" || !player.connected) return;
-          player.adventureSpinReady = true;
-          broadcastRoomState(room);
-        }, 25000);
-        game.adventureSpinTimers.set(player.id, spinTimer);
-      }
     }
   }
 
@@ -212,7 +204,7 @@ export function setupSocketHandlers(
 
     const playersList = Array.from(room.players.values());
     const endPayload = room.game.buildGameEndPayload(playersList);
-    await Promise.all(endPayload.leaderboard.map((entry, index) => {
+    await Promise.all(endPayload.leaderboard.filter((entry) => !entry.forfeited).map((entry, index) => {
       const player = room.players.get(entry.playerId);
       return userStore.awardExperience(player?.userId, Math.max(10, 100 - index * 20));
     }));
@@ -221,9 +213,21 @@ export function setupSocketHandlers(
     broadcastRoomState(room);
   }
 
+  function endMineSweeperIfSettled(room: GameRoom): boolean {
+    if (
+      room.status !== "PLAYING" ||
+      !room.game?.isMineSweeper() ||
+      !room.game.isMineSweeperSettled(Array.from(room.players.values()))
+    ) {
+      return false;
+    }
+    void endGame(room);
+    return true;
+  }
+
   function syncRoom(room: GameRoom) {
     if (room.game?.isRaceMode()) {
-      if (room.status === "PLAYING" && (room.game.raceEndsAt ?? 0) <= Date.now()) endGame(room);
+      if (room.status === "PLAYING" && room.game.raceEndsAt && room.game.raceEndsAt <= Date.now()) endGame(room);
       else broadcastRoomState(room);
       return;
     }
@@ -311,7 +315,7 @@ export function setupSocketHandlers(
       const { room } = roomManager.leaveRoom(socket.id);
       if (room) {
         socket.leave(getRoomChannel(room.code));
-        broadcastRoomState(room);
+        if (!endMineSweeperIfSettled(room)) broadcastRoomState(room);
       }
     });
 
@@ -374,18 +378,13 @@ export function setupSocketHandlers(
         player.streak = 0;
         player.maxStreak = 0;
         player.totalResponseTimeMs = 0;
-        player.boostMultiplier = undefined;
-        player.boostEndsAt = undefined;
-        player.frozenUntil = undefined;
-        player.adventureSpinReady = false;
-        player.adventurePendingFreeze = false;
+        player.completionTimeMs = undefined;
+        player.forfeited = false;
       }
 
       // Prepare words
       const words = vocabularyService.getRandomWords(
-        room.settings.gameMode === "RACE" || room.settings.gameMode === "AMAZING_RACE"
-          ? 1000
-          : room.settings.roundsCount,
+        room.settings.gameMode === "RACE" ? 1000 : room.settings.roundsCount,
         {
         level: room.settings.level,
         category: room.settings.category,
@@ -451,17 +450,9 @@ export function setupSocketHandlers(
       const player = room.players.get(playerId);
       if (!player) return;
 
-      if (room.game.isAmazingRace() && (player.frozenUntil ?? 0) > Date.now()) {
-        callback?.({ correct: false, score: 0, message: "Bạn đang bị đóng băng!" });
-        return;
-      }
-
       const submission = currentRound.submitAnswer(playerId, answer);
 
       if (submission.isCorrect) {
-        if (!submission.alreadyAnswered && room.game.isAmazingRace() && (player.boostEndsAt ?? 0) > Date.now()) {
-          submission.score = Math.max(1, Math.round(submission.score * (player.boostMultiplier ?? 1)));
-        }
         if (callback) {
           callback({
             correct: true,
@@ -476,7 +467,6 @@ export function setupSocketHandlers(
         if (room.game.isRaceMode()) {
           const raceAdvance = room.game.recordRaceCorrectAnswer(
             player,
-            Array.from(room.players.values()),
             submission.score,
             submission.responseTimeMs || 0,
             currentRound.vocabulary.word,
@@ -508,8 +498,6 @@ export function setupSocketHandlers(
           });
         }
 
-        broadcastRoomState(room);
-
         if (room.game.isRaceMode()) {
           io.to(player.socketId).emit("race:answer-reveal", {
             roundId: currentRound.roundId,
@@ -517,9 +505,20 @@ export function setupSocketHandlers(
             meaning: currentRound.vocabulary.meaning,
             pronunciation: currentRound.vocabulary.pronunciation,
           });
-          startRaceRound(room, player.id);
+          if (room.game.isMineSweeper() && player.correctCount >= room.game.totalRounds) {
+            player.completionTimeMs = Date.now() - (room.game.raceStartedAt ?? Date.now());
+            room.game.clearRacePlayerTimers(player.id);
+            if (!endMineSweeperIfSettled(room)) broadcastRoomState(room);
+          } else if (!room.game.raceEndsAt && player.correctCount >= room.game.totalRounds) {
+            endGame(room);
+          } else {
+            broadcastRoomState(room);
+            startRaceRound(room, player.id);
+          }
           return;
         }
+
+        broadcastRoomState(room);
 
         // If all connected active players answered correctly, finish round immediately
         const activePlayerIds = Array.from(room.players.values())
@@ -545,76 +544,6 @@ export function setupSocketHandlers(
       }
     });
 
-    socket.on("race:skip", ({ roundId }, callback) => {
-      const room = roomManager.getRoomBySocketId(socket.id);
-      const playerId = room?.socketToPlayer.get(socket.id);
-      const player = playerId ? room?.players.get(playerId) : undefined;
-      const round = playerId ? room?.game?.getRaceRound(playerId) : undefined;
-      if (!room || !playerId || !player || !round || !room.game?.isAmazingRace()) {
-        callback?.({ success: false, message: "Skip chỉ có trong Cuộc đua kỳ thú." });
-        return;
-      }
-      if (round.roundId !== roundId || Date.now() < round.endsAt - 5000) {
-        callback?.({ success: false, message: "Skip mở khi còn 5 giây cuối." });
-        return;
-      }
-
-      room.game.resetPlayerStreak(player);
-      room.game.clearRacePlayerTimers(playerId);
-      io.to(player.socketId).emit("race:answer-reveal", {
-        roundId: round.roundId,
-        answer: round.vocabulary.word.toUpperCase(),
-        meaning: round.vocabulary.meaning,
-        pronunciation: round.vocabulary.pronunciation,
-      });
-      startRaceRound(room, playerId);
-      callback?.({ success: true, message: "Đã bỏ qua câu này." });
-    });
-
-    socket.on("adventure:spin", (callback) => {
-      const room = roomManager.getRoomBySocketId(socket.id);
-      const playerId = room?.socketToPlayer.get(socket.id);
-      const player = playerId ? room?.players.get(playerId) : undefined;
-      if (!room || !player || !room.game?.isAmazingRace() || !player.adventureSpinReady) {
-        callback?.({ success: false, message: "Vòng quay chưa sẵn sàng." });
-        return;
-      }
-
-      player.adventureSpinReady = false;
-      const roll = Math.random();
-      if (roll < 0.4) {
-        player.boostMultiplier = 2;
-        player.boostEndsAt = Date.now() + 25000;
-        broadcastRoomState(room);
-        callback?.({ success: true, effect: "DOUBLE_POINTS", expiresAt: player.boostEndsAt, message: "X2 điểm trong 25 giây!" });
-      } else if (roll < 0.75) {
-        player.boostMultiplier = 0.5;
-        player.boostEndsAt = Date.now() + 25000;
-        broadcastRoomState(room);
-        callback?.({ success: true, effect: "HALF_POINTS", expiresAt: player.boostEndsAt, message: "Điểm /2 trong 25 giây!" });
-      } else {
-        player.adventurePendingFreeze = true;
-        broadcastRoomState(room);
-        callback?.({ success: true, effect: "FREEZE", message: "Chọn một đối thủ để đóng băng 5 giây." });
-      }
-    });
-
-    socket.on("adventure:freeze", ({ targetPlayerId }, callback) => {
-      const room = roomManager.getRoomBySocketId(socket.id);
-      const playerId = room?.socketToPlayer.get(socket.id);
-      const player = playerId ? room?.players.get(playerId) : undefined;
-      const target = room?.players.get(targetPlayerId);
-      if (!room || !player || !target || !room.game?.isAmazingRace() || !player.adventurePendingFreeze || target.id === player.id || !target.connected) {
-        callback?.({ success: false, message: "Không thể đóng băng người chơi này." });
-        return;
-      }
-
-      player.adventurePendingFreeze = false;
-      target.frozenUntil = Math.max(target.frozenUntil ?? 0, Date.now()) + 5000;
-      broadcastRoomState(room);
-      callback?.({ success: true, effect: "FREEZE", expiresAt: target.frozenUntil, message: `${target.nickname} bị đóng băng 5 giây!` });
-    });
-
     // 8. Play Again
     socket.on("game:play-again", () => {
       const room = roomManager.getRoomBySocketId(socket.id);
@@ -634,7 +563,14 @@ export function setupSocketHandlers(
       }
 
       room.status = "LOBBY";
-      for (const player of room.players.values()) {
+      for (const [playerId, player] of room.players.entries()) {
+        if (!player.connected) {
+          room.players.delete(playerId);
+          for (const [token, tokenPlayerId] of room.tokens.entries()) {
+            if (tokenPlayerId === playerId) room.tokens.delete(token);
+          }
+          continue;
+        }
         player.score = 0;
         player.correctCount = 0;
         player.raceProgress = 0;
@@ -643,12 +579,9 @@ export function setupSocketHandlers(
         player.streak = 0;
         player.maxStreak = 0;
         player.totalResponseTimeMs = 0;
+        player.completionTimeMs = undefined;
+        player.forfeited = false;
         player.ready = player.isHost;
-        player.boostMultiplier = undefined;
-        player.boostEndsAt = undefined;
-        player.frozenUntil = undefined;
-        player.adventureSpinReady = false;
-        player.adventurePendingFreeze = false;
       }
 
       broadcastRoomState(room);
@@ -657,7 +590,7 @@ export function setupSocketHandlers(
     // 9. Disconnect
     socket.on("disconnect", () => {
       const { room } = roomManager.handleSocketDisconnect(socket.id, (r) => {
-        broadcastRoomState(r);
+        if (!endMineSweeperIfSettled(r)) broadcastRoomState(r);
       });
 
       if (room) {

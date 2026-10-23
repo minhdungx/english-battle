@@ -105,4 +105,34 @@ describe("round-manager", () => {
     expect(res.success).toBe(false);
     expect(res.isCorrect).toBe(false);
   });
+
+  it("keeps an untimed race word answerable until it is solved", () => {
+    const now = 100000;
+    const round = new RoundManager({
+      roundId: "race_1",
+      roundNumber: 1,
+      totalRounds: 5,
+      vocabulary: sampleVocab,
+      durationMs: 0,
+      now,
+    });
+
+    expect(round.submitAnswer("p1", "achievement", now + 60000).isCorrect).toBe(true);
+  });
+
+  it("reveals every letter when a race word enables full hints", () => {
+    const vocabulary = { ...sampleVocab, word: "racing" };
+    const raceRound = new RoundManager({
+      roundId: "race",
+      roundNumber: 1,
+      totalRounds: 5,
+      vocabulary,
+      durationMs: 0,
+      revealAllHints: true,
+    });
+
+    while (raceRound.revealNextHint()) undefined;
+
+    expect(Object.keys(raceRound.getPublicInfo().revealedPositions)).toHaveLength(6);
+  });
 });
